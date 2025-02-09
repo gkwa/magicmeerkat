@@ -8,7 +8,8 @@
     "downloads",
     "tabs",
     "activeTab",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "action": {
     "default_icon": {
@@ -22,6 +23,12 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",
