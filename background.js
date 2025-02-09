@@ -14,52 +14,54 @@ async function savePage(uuid) {
     const timestamp = now.toISOString();
     const timestampForFilename = timestamp.replace(/[:.]/g, '-');
     
-    // Generate base filename with timestamp and sanitized page title
+    // Generate filename with timestamp and sanitized page title
     const sanitizedTitle = tab.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-    const baseFilename = `${sanitizedTitle}_${timestampForFilename}`;
+    const filename = `${sanitizedTitle}_${timestampForFilename}.yaml`;
 
-    // Prepare metadata
-    const metadata = {
-      url: tab.url,
-      title: tab.title,
-      timestamp: timestamp,
-      savedAt: now.toLocaleString(),
-      mhtmlFile: baseFilename + '.mhtml',
-      uuid: uuid
-    };
-
-    // Save metadata as JSON
-    const metadataBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: 'application/json' });
-    const metadataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.readAsDataURL(metadataBlob);
-    });
-
-    // Save the JSON metadata file
-    await chrome.downloads.download({
-      url: metadataUrl,
-      filename: baseFilename + '.json',
-      saveAs: false
-    });
-
-    // Capture and save the MHTML
+    // Capture the MHTML
     const mhtmlData = await chrome.pageCapture.saveAsMHTML({ tabId: tab.id });
-    const mhtmlUrl = await new Promise((resolve) => {
+    
+    // Convert MHTML to base64
+    const base64Mhtml = await new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
+      reader.onload = () => {
+        // Get the base64 part after the data URL prefix
+        const base64Data = reader.result.split(',')[1];
+        resolve(base64Data);
+      };
       reader.readAsDataURL(mhtmlData);
     });
 
-    // Save the MHTML file
+    // Create YAML content
+    const yamlContent = `metadata:
+  url: "${tab.url}"
+  title: "${tab.title.replace(/"/g, '\\"')}"
+  timestamp: "${timestamp}"
+  savedAt: "${now.toLocaleString()}"
+  uuid: "${uuid}"
+content:
+  encoding: base64
+  mimeType: application/x-mimearchive
+  data: |
+    ${base64Mhtml.replace(/\n/g, '\n    ')}`;
+
+    // Create and save the YAML file
+    const yamlBlob = new Blob([yamlContent], { type: 'application/yaml' });
+    const yamlUrl = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(yamlBlob);
+    });
+
+    // Save the combined YAML file
     await chrome.downloads.download({
-      url: mhtmlUrl,
-      filename: baseFilename + '.mhtml',
+      url: yamlUrl,
+      filename: filename,
       saveAs: false
     });
 
   } catch (error) {
-    console.error('Error saving files:', error);
+    console.error('Error saving file:', error);
   }
 }
 
