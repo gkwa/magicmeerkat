@@ -1,29 +1,46 @@
 chrome.action.onClicked.addListener(async (tab) => {
-  const result = await chrome.storage.local.get("uuid")
-  if (result.uuid) {
-    await savePage(result.uuid)
-    await navigateToNextPage(tab.id)
-  } else {
+  const result = await chrome.storage.local.get(["uuid", "isProcessing"])
+  if (!result.uuid) {
     console.error("No UUID found. Please post a business first.")
+    return
   }
+  
+  if (result.isProcessing) {
+    console.log("Already processing pages, stopping...")
+    await chrome.storage.local.set({ isProcessing: false })
+    return
+  }
+
+  console.log("Starting automated processing...")
+  await chrome.storage.local.set({ isProcessing: true })
+  await processNextPage(tab.id)
 })
 
-async function navigateToNextPage(tabId) {
+async function processNextPage(tabId) {
   try {
-    const pageInfo = await chrome.tabs.sendMessage(tabId, { action: "getPageInfo" })
-    if (!pageInfo) {
-      console.error("Could not determine page information")
+    const status = await chrome.storage.local.get("isProcessing")
+    if (!status.isProcessing) {
+      console.log("Processing stopped by user")
       return
     }
 
-    console.log("Page info:", pageInfo)
+    const result = await chrome.storage.local.get("uuid")
+    await savePage(result.uuid)
+    
+    const pageInfo = await chrome.tabs.sendMessage(tabId, { action: "getPageInfo" })
+    if (!pageInfo) {
+      console.error("Could not determine page information")
+      await chrome.storage.local.set({ isProcessing: false })
+      return
+    }
 
     if (pageInfo.currentPage >= pageInfo.totalPages) {
-      console.log("Reached last page, showing notification...")
+      console.log("Reached last page, stopping...")
       await chrome.tabs.sendMessage(tabId, {
         action: "showNotification",
-        message: `Reached the last page (${pageInfo.currentPage} of ${pageInfo.totalPages})`,
+        message: `Completed processing all pages (${pageInfo.currentPage} of ${pageInfo.totalPages})`,
       })
+      await chrome.storage.local.set({ isProcessing: false })
       return
     }
 
@@ -32,9 +49,27 @@ async function navigateToNextPage(tabId) {
     let start = parseInt(url.searchParams.get("start") || "0")
     start += 10
     url.searchParams.set("start", start.toString())
+    
+    // Add listener before navigation
+    const navigatePromise = new Promise((resolve) => {
+      const listener = (updatedTabId, changeInfo) => {
+        if (updatedTabId === tabId && changeInfo.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener)
+          setTimeout(resolve, 2000) // Wait 2s for page to fully render
+        }
+      }
+      chrome.tabs.onUpdated.addListener(listener)
+    })
+
+    // Navigate and wait
     await chrome.tabs.update(tabId, { url: url.toString() })
+    await navigatePromise
+    
+    // Process next page
+    await processNextPage(tabId)
   } catch (error) {
-    console.error("Error navigating to next page:", error)
+    console.error("Error processing page:", error)
+    await chrome.storage.local.set({ isProcessing: false })
   }
 }
 
@@ -96,14 +131,13 @@ async function sendToServer(payload) {
   }
 }
 
-// Handle keyboard shortcut
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === "_execute_action") {
-    const result = await chrome.storage.local.get("uuid")
-    if (result.uuid) {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      await savePage(result.uuid)
-      await navigateToNextPage(tab.id)
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    const result = await chrome.storage.local.get(["uuid", "isProcessing"])
+    if (result.uuid && !result.isProcessing) {
+      await chrome.storage.local.set({ isProcessing: true })
+      await processNextPage(tab.id)
     }
   }
 })

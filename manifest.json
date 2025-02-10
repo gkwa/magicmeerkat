@@ -4,6 +4,7 @@
   "version": "1.0",
   "description": "Save current page as MHTML with timestamp",
   "permissions": ["pageCapture", "downloads", "tabs", "activeTab", "storage", "scripting"],
+  "host_permissions": ["<all_urls>"],
   "action": {
     "default_icon": {
       "16": "icon16.png",
