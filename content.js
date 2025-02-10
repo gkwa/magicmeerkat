@@ -1,28 +1,26 @@
-// Notification styles
 const style = document.createElement("style")
 style.textContent = `
 .page-notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #333;
-  color: white;
-  padding: 15px 25px;
-  border-radius: 5px;
-  z-index: 10000;
-  animation: fadeInOut 3s ease-in-out;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+ position: fixed;
+ top: 20px;
+ right: 20px;
+ background: #333;
+ color: white;
+ padding: 15px 25px;
+ border-radius: 5px;
+ z-index: 10000;
+ animation: fadeInOut 3s ease-in-out;
+ box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
 @keyframes fadeInOut {
-  0% { opacity: 0; transform: translateY(-20px); }
-  10% { opacity: 1; transform: translateY(0); }
-  90% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-20px); }
+ 0% { opacity: 0; transform: translateY(-20px); }
+ 10% { opacity: 1; transform: translateY(0); }
+ 90% { opacity: 1; transform: translateY(0); }
+ 100% { opacity: 0; transform: translateY(-20px); }
 }`
 document.head.appendChild(style)
 
-// UUID message listener
 window.addEventListener(
   "message",
   function (event) {
@@ -99,6 +97,9 @@ function getPageInfo() {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "ping") {
+    sendResponse({ status: "ready" })
+  }
   if (request.action === "findSection") {
     const found = findAndScrollToSection()
     sendResponse({ found })
