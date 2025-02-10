@@ -20,6 +20,10 @@ function logError(error, context = "") {
   })
 }
 
+function getRandomDelay(min = 3000, max = 8000) {
+  return Math.floor(Math.random() * (max - min + 1) + min)
+}
+
 chrome.action.onClicked.addListener(async (tab) => {
   const result = await chrome.storage.local.get(["uuid", "isProcessing"])
   if (!result.uuid) {
@@ -38,6 +42,19 @@ chrome.action.onClicked.addListener(async (tab) => {
   await processNextPage(tab.id)
 })
 
+async function getPageInfoWithRetry(tabId, maxRetries = 3, delay = 1000) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const pageInfo = await chrome.tabs.sendMessage(tabId, { action: "getPageInfo" })
+      if (pageInfo) return pageInfo
+    } catch (error) {
+      if (i === maxRetries - 1) throw error
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+  throw new Error("Failed to get page info after retries")
+}
+
 async function processNextPage(tabId) {
   try {
     const status = await chrome.storage.local.get("isProcessing")
@@ -49,7 +66,7 @@ async function processNextPage(tabId) {
     const result = await chrome.storage.local.get("uuid")
     await savePage(result.uuid)
 
-    const pageInfo = await chrome.tabs.sendMessage(tabId, { action: "getPageInfo" })
+    const pageInfo = await getPageInfoWithRetry(tabId)
     if (!pageInfo) {
       logError("Could not determine page information", "pageInfo")
       await chrome.storage.local.set({ isProcessing: false })
@@ -65,6 +82,10 @@ async function processNextPage(tabId) {
       await chrome.storage.local.set({ isProcessing: false })
       return
     }
+
+    const delay = getRandomDelay()
+    console.log(`Waiting ${delay}ms before processing next page...`)
+    await new Promise((resolve) => setTimeout(resolve, delay))
 
     const tab = await chrome.tabs.get(tabId)
     const url = new URL(tab.url)
