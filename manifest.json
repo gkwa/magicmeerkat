@@ -3,7 +3,7 @@
   "name": "Page Saver MHTML",
   "version": "1.0",
   "description": "Save current page as MHTML with timestamp",
-  "permissions": ["pageCapture", "downloads", "tabs", "activeTab", "storage", "scripting"],
+  "permissions": ["pageCapture", "downloads", "tabs", "activeTab", "storage", "scripting", "notifications"],
   "action": {
     "default_icon": {
       "16": "icon16.png",
