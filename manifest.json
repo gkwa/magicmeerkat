@@ -13,14 +13,12 @@
     "default_title": "Save as MHTML"
   },
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "type": "module"
+      "js": ["content.js"]
     }
   ],
   "icons": {
