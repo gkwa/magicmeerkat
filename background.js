@@ -1,10 +1,32 @@
+let errorLog = []
+
+function logError(error, context = "") {
+  const errorEntry = {
+    message: error.message || error,
+    stack: error.stack,
+    context,
+    timestamp: new Date().toISOString(),
+  }
+  errorLog.push(errorEntry)
+  console.error(`[${context}]`, error)
+
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    if (tabs[0]) {
+      chrome.tabs.sendMessage(tabs[0].id, {
+        action: "showError",
+        error: errorEntry,
+      })
+    }
+  })
+}
+
 chrome.action.onClicked.addListener(async (tab) => {
   const result = await chrome.storage.local.get(["uuid", "isProcessing"])
   if (!result.uuid) {
-    console.error("No UUID found. Please post a business first.")
+    logError("No UUID found. Please post a business first.", "initialization")
     return
   }
-  
+
   if (result.isProcessing) {
     console.log("Already processing pages, stopping...")
     await chrome.storage.local.set({ isProcessing: false })
@@ -26,10 +48,10 @@ async function processNextPage(tabId) {
 
     const result = await chrome.storage.local.get("uuid")
     await savePage(result.uuid)
-    
+
     const pageInfo = await chrome.tabs.sendMessage(tabId, { action: "getPageInfo" })
     if (!pageInfo) {
-      console.error("Could not determine page information")
+      logError("Could not determine page information", "pageInfo")
       await chrome.storage.local.set({ isProcessing: false })
       return
     }
@@ -49,26 +71,23 @@ async function processNextPage(tabId) {
     let start = parseInt(url.searchParams.get("start") || "0")
     start += 10
     url.searchParams.set("start", start.toString())
-    
-    // Add listener before navigation
+
     const navigatePromise = new Promise((resolve) => {
       const listener = (updatedTabId, changeInfo) => {
-        if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        if (updatedTabId === tabId && changeInfo.status === "complete") {
           chrome.tabs.onUpdated.removeListener(listener)
-          setTimeout(resolve, 2000) // Wait 2s for page to fully render
+          setTimeout(resolve, 2000)
         }
       }
       chrome.tabs.onUpdated.addListener(listener)
     })
 
-    // Navigate and wait
     await chrome.tabs.update(tabId, { url: url.toString() })
     await navigatePromise
-    
-    // Process next page
+
     await processNextPage(tabId)
   } catch (error) {
-    console.error("Error processing page:", error)
+    logError(error, "processNextPage")
     await chrome.storage.local.set({ isProcessing: false })
   }
 }
@@ -84,7 +103,7 @@ async function savePage(uuid) {
     await sendToServer(payload)
     console.log("Page data sent to server successfully")
   } catch (error) {
-    console.error("Error sending page to server:", error)
+    logError(error, "savePage")
     throw error
   }
 }
@@ -118,16 +137,21 @@ function createPayload(tab, timestamp, now, uuid, base64Mhtml) {
 }
 
 async function sendToServer(payload) {
-  const response = await fetch("http://localhost:8080/save", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  })
+  try {
+    const response = await fetch("http://localhost:8080/save", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    })
 
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+  } catch (error) {
+    logError(error, "sendToServer")
+    throw error
   }
 }
 
