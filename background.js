@@ -32,7 +32,7 @@ function logError(error, context = "") {
   })
 }
 
-function getRandomDelay(min = 3000, max = 8000) {
+function getRandomDelay(min = 500, max = 5000) {
   return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
