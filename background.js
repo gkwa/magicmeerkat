@@ -32,7 +32,7 @@ function logError(error, context = "") {
   })
 }
 
-function getRandomDelay(min = 500, max = 5000) {
+function getRandomDelay(min = 2000, max = 5000) {
   return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
@@ -59,15 +59,15 @@ async function processNextPage(tabId) {
     const status = await chrome.storage.local.get(["isProcessing", "isFirstPage"])
     if (!status.isProcessing) return
 
-    const loadDelay = status.isFirstPage ? 2000 : 5000
-    await new Promise((resolve) => setTimeout(resolve, loadDelay))
+    // Consistent initial load delay: 3 seconds
+    await new Promise((resolve) => setTimeout(resolve, 3000))
 
     const isContentScriptReady = await waitForContentScript(tabId)
     if (!isContentScriptReady) {
       throw new Error("Content script not ready after maximum attempts")
     }
 
-    const pageInfo = await getPageInfoWithRetry(tabId, 3, 2000)
+    const pageInfo = await getPageInfoWithRetry(tabId, 3, 1000)
     if (!pageInfo) {
       logError("Could not determine page information", "pageInfo")
       await chrome.storage.local.set({ isProcessing: false })
@@ -91,12 +91,9 @@ async function processNextPage(tabId) {
       return
     }
 
-    if (!status.isFirstPage) {
-      const delay = getRandomDelay()
-      await new Promise((resolve) => setTimeout(resolve, delay))
-    } else {
-      await chrome.storage.local.set({ isFirstPage: false })
-    }
+    // Consistent delay between pages: 3-5 seconds
+    const delay = getRandomDelay(3000, 5000)
+    await new Promise((resolve) => setTimeout(resolve, delay))
 
     const tab = await chrome.tabs.get(tabId)
     const url = new URL(tab.url)
@@ -107,7 +104,7 @@ async function processNextPage(tabId) {
       const listener = (updatedTabId, changeInfo) => {
         if (updatedTabId === tabId && changeInfo.status === "complete") {
           chrome.tabs.onUpdated.removeListener(listener)
-          setTimeout(resolve, 3000)
+          setTimeout(resolve, 2000)
         }
       }
       chrome.tabs.onUpdated.addListener(listener)
@@ -140,6 +137,7 @@ async function savePage(uuid, maxRetries = 3) {
       const now = new Date()
       const timestamp = now.toISOString()
 
+      // Consistent delay before saving: 2 seconds
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
       const mhtmlData = await chrome.pageCapture.saveAsMHTML({ tabId: tab.id })
