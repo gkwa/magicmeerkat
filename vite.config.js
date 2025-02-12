@@ -44,7 +44,15 @@ const manifestPlugin = {
       name: "Page Saver MHTML",
       version: "1.0",
       description: "Save current page as MHTML with timestamp",
-      permissions: ["pageCapture", "downloads", "tabs", "activeTab", "storage", "scripting"],
+      permissions: [
+        "pageCapture",
+        "downloads",
+        "tabs",
+        "activeTab",
+        "storage",
+        "scripting",
+        "commands",
+      ],
       host_permissions: ["<all_urls>"],
       action: {
         default_icon: {
@@ -69,6 +77,13 @@ const manifestPlugin = {
         128: "icon128.png",
       },
       commands: {
+        reload: {
+          suggested_key: {
+            default: "Ctrl+Shift+E",
+            mac: "Command+Shift+E",
+          },
+          description: "Reload extension",
+        },
         _execute_action: {
           suggested_key: {
             default: "Ctrl+Shift+S",

@@ -6,21 +6,24 @@ export async function savePage(uuid, tabId, maxRetries = 3) {
       if (typeof tabId !== "number" || tabId <= 0) {
         throw new Error(`Invalid tab ID: ${tabId}`)
       }
-
       const tab = await chrome.tabs.get(tabId)
       const now = new Date()
       const timestamp = now.toISOString()
 
-      // Wait for page to be fully loaded
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      // Extract reviews content using content script
-      const reviewsContent = await chrome.tabs.sendMessage(tabId, { action: "extractReviews" })
-      if (!reviewsContent) {
-        throw new Error("Failed to extract reviews content")
+      // Wait for content and check for reviews
+      const reviews = await chrome.tabs.sendMessage(tabId, { action: "waitForPageContent" })
+      if (!reviews) {
+        console.log("No reviews section found on this page - skipping")
+        return // Just skip this page instead of treating it as an error
       }
 
-      const payload = createPayload(tab, timestamp, now, uuid, reviewsContent)
+      // Convert HTML to base64 using TextEncoder for proper Unicode handling
+      const base64Html = btoa(
+        new TextEncoder()
+          .encode(reviews)
+          .reduce((data, byte) => data + String.fromCharCode(byte), ""),
+      )
+      const payload = createPayload(tab, timestamp, now, uuid, base64Html)
       await sendToServer(payload)
       console.log("Reviews data sent to server successfully")
       return
@@ -34,7 +37,7 @@ export async function savePage(uuid, tabId, maxRetries = 3) {
   }
 }
 
-function createPayload(tab, timestamp, now, uuid, reviewsContent) {
+function createPayload(tab, timestamp, now, uuid, base64Html) {
   return {
     metadata: {
       url: tab.url,
@@ -44,7 +47,9 @@ function createPayload(tab, timestamp, now, uuid, reviewsContent) {
       uuid: uuid,
     },
     content: {
-      html: reviewsContent,
+      encoding: "base64",
+      mimeType: "text/html",
+      data: base64Html,
     },
   }
 }

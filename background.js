@@ -24,6 +24,8 @@ chrome.action.onClicked.addListener(async (tab) => {
 })
 
 chrome.commands.onCommand.addListener(async (command) => {
+  console.log("Command received:", command) // Moved to top of listener
+
   if (command === "_execute_action") {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     const { uuid, isProcessing } = await getStorageData(["uuid", "isProcessing"])
@@ -32,5 +34,10 @@ chrome.commands.onCommand.addListener(async (command) => {
       await setStorageData({ isProcessing: true })
       await processNextPage(tab.id)
     }
+  }
+
+  if (command === "reload") {
+    console.log("Reloading extension...") // Added additional logging
+    chrome.runtime.reload()
   }
 })
