@@ -11,7 +11,6 @@ async function waitForContentScript(tabId, maxAttempts = 10) {
 }
 
 let errorLog = []
-
 function logError(error, context = "") {
   const errorEntry = {
     message: error.message || error,
@@ -21,7 +20,6 @@ function logError(error, context = "") {
   }
   errorLog.push(errorEntry)
   console.error(`[${context}]`, error)
-
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     if (tabs[0]) {
       chrome.tabs.sendMessage(tabs[0].id, {
@@ -42,13 +40,11 @@ chrome.action.onClicked.addListener(async (tab) => {
     logError("No UUID found. Please post a business first.", "initialization")
     return
   }
-
   if (result.isProcessing) {
     console.log("Already processing pages, stopping...")
     await chrome.storage.local.set({ isProcessing: false })
     return
   }
-
   console.log("Starting automated processing...")
   await chrome.storage.local.set({ isProcessing: true, isFirstPage: true })
   await processNextPage(tab.id)
@@ -58,30 +54,24 @@ async function processNextPage(tabId) {
   try {
     const status = await chrome.storage.local.get(["isProcessing", "isFirstPage"])
     if (!status.isProcessing) return
-
     // Consistent initial load delay: 3 seconds
     await new Promise((resolve) => setTimeout(resolve, 3000))
-
     const isContentScriptReady = await waitForContentScript(tabId)
     if (!isContentScriptReady) {
       throw new Error("Content script not ready after maximum attempts")
     }
-
     const pageInfo = await getPageInfoWithRetry(tabId, 3, 1000)
     if (!pageInfo) {
       logError("Could not determine page information", "pageInfo")
       await chrome.storage.local.set({ isProcessing: false })
       return
     }
-
     await chrome.tabs.sendMessage(tabId, {
       action: "showNotification",
       message: `Viewing page ${pageInfo.currentPage} of ${pageInfo.totalPages}`,
     })
-
     const result = await chrome.storage.local.get("uuid")
-    await savePage(result.uuid)
-
+    await savePage(result.uuid, tabId)
     if (pageInfo.currentPage >= pageInfo.totalPages) {
       await chrome.tabs.sendMessage(tabId, {
         action: "showNotification",
@@ -90,15 +80,12 @@ async function processNextPage(tabId) {
       await chrome.storage.local.set({ isProcessing: false })
       return
     }
-
     // Consistent delay between pages: 3-5 seconds
     const delay = getRandomDelay(3000, 5000)
     await new Promise((resolve) => setTimeout(resolve, delay))
-
     const tab = await chrome.tabs.get(tabId)
     const url = new URL(tab.url)
     url.searchParams.set("start", (parseInt(url.searchParams.get("start") || "0") + 10).toString())
-
     await chrome.tabs.update(tabId, { url: url.toString() })
     await new Promise((resolve) => {
       const listener = (updatedTabId, changeInfo) => {
@@ -109,7 +96,6 @@ async function processNextPage(tabId) {
       }
       chrome.tabs.onUpdated.addListener(listener)
     })
-
     await processNextPage(tabId)
   } catch (error) {
     logError(error, "processNextPage")
@@ -130,19 +116,20 @@ async function getPageInfoWithRetry(tabId, maxRetries = 3, delay = 1000) {
   throw new Error("Failed to get page info after retries")
 }
 
-async function savePage(uuid, maxRetries = 3) {
+async function savePage(uuid, tabId, maxRetries = 3) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!tabId) {
+        throw new Error("No tab ID provided")
+      }
+
+      const tab = await chrome.tabs.get(tabId)
       const now = new Date()
       const timestamp = now.toISOString()
-
       // Consistent delay before saving: 2 seconds
       await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      const mhtmlData = await chrome.pageCapture.saveAsMHTML({ tabId: tab.id })
+      const mhtmlData = await chrome.pageCapture.saveAsMHTML({ tabId: tabId })
       if (!mhtmlData) throw new Error("Failed to generate MHTML")
-
       const base64Mhtml = await convertToBase64(mhtmlData)
       const payload = createPayload(tab, timestamp, now, uuid, base64Mhtml)
       await sendToServer(payload)
@@ -195,7 +182,6 @@ async function sendToServer(payload) {
       },
       body: JSON.stringify(payload),
     })
-
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
