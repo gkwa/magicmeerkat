@@ -1,26 +1,26 @@
 const style = document.createElement("style")
 style.textContent = `
 .page-notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #333;
-  color: white;
-  padding: 15px 25px;
-  border-radius: 5px;
-  z-index: 10000;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  opacity: 1;
-  transition: opacity 0.3s ease-in-out;
+ position: fixed;
+ top: 20px;
+ right: 20px;
+ background: #333;
+ color: white;
+ padding: 15px 25px;
+ border-radius: 5px;
+ z-index: 10000;
+ box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
-.fade-in {
-  animation: fadeIn 0.3s ease-in-out;
+.fade-out {
+ animation: fadeInOut 3s ease-in-out;
 }
 
-@keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(-20px); }
-  100% { opacity: 1; transform: translateY(0); }
+@keyframes fadeInOut {
+ 0% { opacity: 0; transform: translateY(-20px); }
+ 10% { opacity: 1; transform: translateY(0); }
+ 90% { opacity: 1; transform: translateY(0); }
+ 100% { opacity: 0; transform: translateY(-20px); }
 }`
 document.head.appendChild(style)
 
@@ -38,7 +38,7 @@ window.addEventListener(
   false,
 )
 
-function showPageNotification(message) {
+function showPageNotification(message, fadeOut = false) {
   // Remove any existing notification
   const existingNotification = document.querySelector(".page-notification")
   if (existingNotification) {
@@ -46,9 +46,18 @@ function showPageNotification(message) {
   }
 
   const notification = document.createElement("div")
-  notification.className = "page-notification fade-in"
+  notification.className = "page-notification"
+  if (fadeOut) {
+    notification.classList.add("fade-out")
+  }
   notification.textContent = message
   document.body.appendChild(notification)
+
+  if (fadeOut) {
+    setTimeout(() => {
+      notification.remove()
+    }, 3000)
+  }
 }
 
 function findAndScrollToSection() {
@@ -114,7 +123,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse(pageInfo)
   }
   if (request.action === "showNotification") {
-    showPageNotification(request.message)
+    // Only use fadeOut for completion message
+    const fadeOut = request.message.includes("Completed processing")
+    showPageNotification(request.message, fadeOut)
     sendResponse({ shown: true })
   }
   return true
