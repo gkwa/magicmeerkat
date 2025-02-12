@@ -1,9 +1,8 @@
-# Default recipe
-default: build
+default:
+    @just --list
 
 # Install dependencies
 setup:
-    pnpm init
     pnpm add -D vite
 
 # Create necessary directories
