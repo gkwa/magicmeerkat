@@ -3,7 +3,6 @@ default: build
 
 # Install dependencies
 setup:
-    pnpm init
     pnpm add -D vite@latest
 
 # Create necessary directories
