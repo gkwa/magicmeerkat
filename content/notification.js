@@ -6,13 +6,12 @@ export function showPageNotification(message, fadeOut = false) {
 
   const notification = document.createElement("div")
   notification.className = "page-notification"
-  if (fadeOut) {
-    notification.classList.add("fade-out")
-  }
   notification.textContent = message
   document.body.appendChild(notification)
 
+  // Only add fade-out and timeout if fadeOut is true
   if (fadeOut) {
+    notification.classList.add("fade-out")
     setTimeout(() => {
       notification.remove()
     }, 3000)

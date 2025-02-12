@@ -36,7 +36,8 @@ export function initializeMessageHandlers() {
     }
 
     if (request.action === "showNotification") {
-      const fadeOut = request.message.includes("Completed processing")
+      // Only set fadeOut to true if it's not the completion message
+      const fadeOut = !request.message.includes("Completed processing")
       showPageNotification(request.message, fadeOut)
       sendResponse({ shown: true })
       return false
