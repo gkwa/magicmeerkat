@@ -3,8 +3,6 @@ export async function waitForContentScript(tabId, maxAttempts = 10) {
     try {
       const response = await chrome.tabs.sendMessage(tabId, { action: "ping" })
       if (response && response.status === "ready") {
-        // Add a small delay after content script is ready
-        await new Promise((resolve) => setTimeout(resolve, 500))
         return true
       }
     } catch (error) {

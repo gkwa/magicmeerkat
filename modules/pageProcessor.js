@@ -14,7 +14,7 @@ export async function processNextPage(tabId) {
       throw new Error("Content script not ready after maximum attempts")
     }
 
-    const pageInfo = await getPageInfoWithRetry(tabId, 5, 500) // Increased retries, decreased delay between them
+    const pageInfo = await getPageInfoWithRetry(tabId, 5, 500)
     if (!pageInfo) {
       logError("Could not determine page information", "pageInfo")
       await setStorageData({ isProcessing: false })
@@ -52,11 +52,6 @@ export async function processNextPage(tabId) {
 async function getPageInfoWithRetry(tabId, maxRetries = 5, delay = 500) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      // Add a small delay before the first attempt
-      if (i === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-      }
-
       const pageInfo = await chrome.tabs.sendMessage(tabId, { action: "getPageInfo" })
       if (pageInfo && pageInfo.currentPage && pageInfo.totalPages) {
         return pageInfo
@@ -76,18 +71,31 @@ async function updateTabURL(tabId) {
   url.searchParams.set("start", (parseInt(url.searchParams.get("start") || "0") + 10).toString())
   await chrome.tabs.update(tabId, { url: url.toString() })
 
-  // Wait for page load with timeout
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       chrome.tabs.onUpdated.removeListener(listener)
-      resolve() // Continue even if timeout occurs
+      resolve()
     }, 5000)
 
-    const listener = (updatedTabId, changeInfo) => {
+    const listener = async (updatedTabId, changeInfo) => {
       if (updatedTabId === tabId && changeInfo.status === "complete") {
-        chrome.tabs.onUpdated.removeListener(listener)
-        clearTimeout(timeout)
-        setTimeout(resolve, 1500) // Increased from 1000 to 1500
+        let attempts = 0
+        while (attempts < 10) {
+          try {
+            const pageInfo = await chrome.tabs.sendMessage(tabId, { action: "getPageInfo" })
+            if (pageInfo && pageInfo.currentPage && pageInfo.totalPages) {
+              chrome.tabs.onUpdated.removeListener(listener)
+              clearTimeout(timeout)
+              resolve()
+              return
+            }
+          } catch (error) {
+            // Continue trying if error
+          }
+          attempts++
+          await new Promise((resolve) => setTimeout(resolve, 200))
+        }
+        resolve()
       }
     }
     chrome.tabs.onUpdated.addListener(listener)
