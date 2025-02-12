@@ -1,5 +1,5 @@
-# Default recipe
-default: build
+default:
+    @just --list
 
 # Install dependencies
 setup:
@@ -22,10 +22,9 @@ build: clean create-dirs
     echo "Listing dist directory:"
     ls -la dist/
 
-# Copy static assets
+# Copy static assets (only icons)
 copy-assets:
-    echo "Copying manifest and icons..."
-    cp manifest.json dist/ || echo "Failed to copy manifest.json"
+    echo "Copying icons..."
     cp icon*.png dist/ || echo "Failed to copy icons"
     echo "Final dist contents:"
     ls -la dist/
