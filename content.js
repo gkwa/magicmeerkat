@@ -39,7 +39,6 @@ window.addEventListener(
 )
 
 function showPageNotification(message, fadeOut = false) {
-  // Remove any existing notification
   const existingNotification = document.querySelector(".page-notification")
   if (existingNotification) {
     existingNotification.remove()
@@ -61,72 +60,84 @@ function showPageNotification(message, fadeOut = false) {
 }
 
 function findAndScrollToSection() {
-  const pattern = /\b\d+\s+of\s+\d+\b/
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
+  return new Promise((resolve) => {
+    const pattern = /\b\d+\s+of\s+\d+\b/
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
 
-  let node
-  let found = false
+    let node
+    let found = false
 
-  while ((node = walker.nextNode())) {
-    if (pattern.test(node.textContent)) {
-      found = true
-      let match = node.textContent.match(pattern)[0]
-      console.log("Found:", match)
+    while ((node = walker.nextNode())) {
+      if (pattern.test(node.textContent)) {
+        found = true
+        let match = node.textContent.match(pattern)[0]
+        console.log("Found:", match)
 
-      let element = node.parentElement
-      while (element && !element.offsetHeight) {
-        element = element.parentElement
+        let element = node.parentElement
+        while (element && !element.offsetHeight) {
+          element = element.parentElement
+        }
+
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" })
+          const originalBackground = element.style.backgroundColor
+          element.style.backgroundColor = "#ffeb3b"
+          setTimeout(() => {
+            element.style.backgroundColor = originalBackground
+          }, 2000)
+        }
+        break
       }
-
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "center" })
-        const originalBackground = element.style.backgroundColor
-        element.style.backgroundColor = "#ffeb3b"
-        setTimeout(() => {
-          element.style.backgroundColor = originalBackground
-        }, 2000)
-      }
-      break
     }
-  }
 
-  return found
+    resolve({ found })
+  })
 }
 
 function getPageInfo() {
-  const pattern = /\b(\d+)\s+of\s+(\d+)\b/
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
+  return new Promise((resolve) => {
+    const pattern = /\b(\d+)\s+of\s+(\d+)\b/
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
 
-  let node
-  while ((node = walker.nextNode())) {
-    const match = node.textContent.match(pattern)
-    if (match) {
-      return {
-        currentPage: parseInt(match[1]),
-        totalPages: parseInt(match[2]),
+    let node
+    while ((node = walker.nextNode())) {
+      const match = node.textContent.match(pattern)
+      if (match) {
+        resolve({
+          currentPage: parseInt(match[1]),
+          totalPages: parseInt(match[2]),
+        })
+        return
       }
     }
-  }
-  return null
+    resolve(null)
+  })
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "ping") {
     sendResponse({ status: "ready" })
+    return false // Synchronous response
   }
+
   if (request.action === "findSection") {
-    const found = findAndScrollToSection()
-    sendResponse({ found })
+    findAndScrollToSection().then((result) => {
+      sendResponse(result)
+    })
+    return true // Async response
   }
+
   if (request.action === "getPageInfo") {
-    const pageInfo = getPageInfo()
-    sendResponse(pageInfo)
+    getPageInfo().then((pageInfo) => {
+      sendResponse(pageInfo)
+    })
+    return true // Async response
   }
+
   if (request.action === "showNotification") {
-    // Only use fadeOut for completion message
     const fadeOut = request.message.includes("Completed processing")
     showPageNotification(request.message, fadeOut)
     sendResponse({ shown: true })
+    return false // Synchronous response
   }
-  return true
 })
