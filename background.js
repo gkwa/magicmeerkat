@@ -1,17 +1,30 @@
-async function waitForContentScript(tabId, maxAttempts = 10) {
+async function waitForContentScript(tabId, maxAttempts = 10, retryDelay = 2000) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
       await chrome.tabs.sendMessage(tabId, { action: "ping" })
       return true
     } catch (error) {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log(`Attempt ${i + 1}/${maxAttempts} to reach content script failed, retrying in ${retryDelay}ms...`)
+      await new Promise((resolve) => setTimeout(resolve, retryDelay))
     }
   }
   return false
 }
 
-let errorLog = []
+async function waitForPageLoad(tabId) {
+  return new Promise((resolve) => {
+    const listener = (updatedTabId, changeInfo, tab) => {
+      if (updatedTabId === tabId && changeInfo.status === "complete") {
+        chrome.tabs.onUpdated.removeListener(listener)
+        // Add extra delay after page load to ensure content script is ready
+        setTimeout(resolve, 3000)
+      }
+    }
+    chrome.tabs.onUpdated.addListener(listener)
+  })
+}
 
+let errorLog = []
 function logError(error, context = "") {
   const errorEntry = {
     message: error.message || error,
@@ -21,7 +34,6 @@ function logError(error, context = "") {
   }
   errorLog.push(errorEntry)
   console.error(`[${context}]`, error)
-
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     if (tabs[0]) {
       chrome.tabs.sendMessage(tabs[0].id, {
@@ -42,13 +54,11 @@ chrome.action.onClicked.addListener(async (tab) => {
     logError("No UUID found. Please post a business first.", "initialization")
     return
   }
-
   if (result.isProcessing) {
     console.log("Already processing pages, stopping...")
     await chrome.storage.local.set({ isProcessing: false })
     return
   }
-
   console.log("Starting automated processing...")
   await chrome.storage.local.set({ isProcessing: true, isFirstPage: true })
   await processNextPage(tab.id)
@@ -59,15 +69,16 @@ async function processNextPage(tabId) {
     const status = await chrome.storage.local.get(["isProcessing", "isFirstPage"])
     if (!status.isProcessing) return
 
-    // Consistent initial load delay: 3 seconds
-    await new Promise((resolve) => setTimeout(resolve, 3000))
-
-    const isContentScriptReady = await waitForContentScript(tabId)
+    // Wait for page to be fully loaded first
+    await waitForPageLoad(tabId)
+    
+    // Now check if content script is ready with increased retry delay
+    const isContentScriptReady = await waitForContentScript(tabId, 10, 2000)
     if (!isContentScriptReady) {
       throw new Error("Content script not ready after maximum attempts")
     }
 
-    const pageInfo = await getPageInfoWithRetry(tabId, 3, 1000)
+    const pageInfo = await getPageInfoWithRetry(tabId, 5, 2000)
     if (!pageInfo) {
       logError("Could not determine page information", "pageInfo")
       await chrome.storage.local.set({ isProcessing: false })
@@ -91,25 +102,16 @@ async function processNextPage(tabId) {
       return
     }
 
-    // Consistent delay between pages: 3-5 seconds
     const delay = getRandomDelay(3000, 5000)
     await new Promise((resolve) => setTimeout(resolve, delay))
 
     const tab = await chrome.tabs.get(tabId)
     const url = new URL(tab.url)
     url.searchParams.set("start", (parseInt(url.searchParams.get("start") || "0") + 10).toString())
-
     await chrome.tabs.update(tabId, { url: url.toString() })
-    await new Promise((resolve) => {
-      const listener = (updatedTabId, changeInfo) => {
-        if (updatedTabId === tabId && changeInfo.status === "complete") {
-          chrome.tabs.onUpdated.removeListener(listener)
-          setTimeout(resolve, 2000)
-        }
-      }
-      chrome.tabs.onUpdated.addListener(listener)
-    })
-
+    
+    await waitForPageLoad(tabId)
+    
     await processNextPage(tabId)
   } catch (error) {
     logError(error, "processNextPage")
@@ -136,13 +138,10 @@ async function savePage(uuid, maxRetries = 3) {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       const now = new Date()
       const timestamp = now.toISOString()
-
       // Consistent delay before saving: 2 seconds
       await new Promise((resolve) => setTimeout(resolve, 2000))
-
       const mhtmlData = await chrome.pageCapture.saveAsMHTML({ tabId: tab.id })
       if (!mhtmlData) throw new Error("Failed to generate MHTML")
-
       const base64Mhtml = await convertToBase64(mhtmlData)
       const payload = createPayload(tab, timestamp, now, uuid, base64Mhtml)
       await sendToServer(payload)
@@ -195,7 +194,6 @@ async function sendToServer(payload) {
       },
       body: JSON.stringify(payload),
     })
-
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -215,3 +213,4 @@ chrome.commands.onCommand.addListener(async (command) => {
     }
   }
 })
+

@@ -13,22 +13,32 @@ style.textContent = `
   opacity: 1;
   transition: opacity 0.3s ease-in-out;
 }
-
 .fade-in {
   animation: fadeIn 0.3s ease-in-out;
 }
-
 @keyframes fadeIn {
   0% { opacity: 0; transform: translateY(-20px); }
   100% { opacity: 1; transform: translateY(0); }
 }`
 document.head.appendChild(style)
 
+let isReady = false
+
+function initializeContentScript() {
+  isReady = true
+  chrome.runtime.sendMessage({ action: "contentScriptReady" })
+}
+
+if (document.readyState === "complete") {
+  initializeContentScript()
+} else {
+  window.addEventListener("load", initializeContentScript)
+}
+
 window.addEventListener(
   "message",
   function (event) {
     if (event.source != window) return
-
     if (event.data.action === "setUUID") {
       chrome.storage.local.set({ uuid: event.data.uuid }, function () {
         console.log("UUID saved:", event.data.uuid)
@@ -44,7 +54,6 @@ function showPageNotification(message) {
   if (existingNotification) {
     existingNotification.remove()
   }
-
   const notification = document.createElement("div")
   notification.className = "page-notification fade-in"
   notification.textContent = message
@@ -54,21 +63,17 @@ function showPageNotification(message) {
 function findAndScrollToSection() {
   const pattern = /\b\d+\s+of\s+\d+\b/
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
-
   let node
   let found = false
-
   while ((node = walker.nextNode())) {
     if (pattern.test(node.textContent)) {
       found = true
       let match = node.textContent.match(pattern)[0]
       console.log("Found:", match)
-
       let element = node.parentElement
       while (element && !element.offsetHeight) {
         element = element.parentElement
       }
-
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" })
         const originalBackground = element.style.backgroundColor
@@ -80,14 +85,12 @@ function findAndScrollToSection() {
       break
     }
   }
-
   return found
 }
 
 function getPageInfo() {
   const pattern = /\b(\d+)\s+of\s+(\d+)\b/
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
-
   let node
   while ((node = walker.nextNode())) {
     const match = node.textContent.match(pattern)
@@ -102,6 +105,11 @@ function getPageInfo() {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (!isReady) {
+    sendResponse({ error: "Content script not ready" })
+    return false
+  }
+
   if (request.action === "ping") {
     sendResponse({ status: "ready" })
   }
