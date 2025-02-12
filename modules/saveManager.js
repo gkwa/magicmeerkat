@@ -11,18 +11,15 @@ export async function savePage(uuid, tabId, maxRetries = 3) {
       const now = new Date()
       const timestamp = now.toISOString()
 
-      // Wait for page to be fully loaded
       await new Promise((resolve) => setTimeout(resolve, 2000))
+      const mhtmlData = await chrome.pageCapture.saveAsMHTML({ tabId: tabId })
+      if (!mhtmlData) throw new Error("Failed to generate MHTML")
 
-      // Extract reviews content using content script
-      const reviewsContent = await chrome.tabs.sendMessage(tabId, { action: "extractReviews" })
-      if (!reviewsContent) {
-        throw new Error("Failed to extract reviews content")
-      }
-
-      const payload = createPayload(tab, timestamp, now, uuid, reviewsContent)
+      const base64Mhtml = await convertToBase64(mhtmlData)
+      const payload = createPayload(tab, timestamp, now, uuid, base64Mhtml)
       await sendToServer(payload)
-      console.log("Reviews data sent to server successfully")
+
+      console.log("Page data sent to server successfully")
       return
     } catch (error) {
       if (i === maxRetries - 1) {
@@ -34,7 +31,18 @@ export async function savePage(uuid, tabId, maxRetries = 3) {
   }
 }
 
-function createPayload(tab, timestamp, now, uuid, reviewsContent) {
+async function convertToBase64(mhtmlData) {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64Data = reader.result.split(",")[1]
+      resolve(base64Data)
+    }
+    reader.readAsDataURL(mhtmlData)
+  })
+}
+
+function createPayload(tab, timestamp, now, uuid, base64Mhtml) {
   return {
     metadata: {
       url: tab.url,
@@ -44,7 +52,9 @@ function createPayload(tab, timestamp, now, uuid, reviewsContent) {
       uuid: uuid,
     },
     content: {
-      html: reviewsContent,
+      encoding: "base64",
+      mimeType: "application/x-mimearchive",
+      data: base64Mhtml,
     },
   }
 }
