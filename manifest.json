@@ -14,12 +14,12 @@
     "default_title": "Save as MHTML"
   },
   "background": {
-    "service_worker": "background-bundle.js"
+    "service_worker": "background-bundle.iife.js"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content-bundle.js"]
+      "js": ["content-bundle.iife.js"]
     }
   ],
   "icons": {

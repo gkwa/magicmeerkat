@@ -1,30 +1,49 @@
 import { defineConfig } from "vite"
 import { resolve } from "path"
 
-export default defineConfig({
+// Separate configs for background and content scripts
+const backgroundConfig = defineConfig({
   build: {
     outDir: "dist",
-    emptyOutDir: true,
+    lib: {
+      entry: resolve(__dirname, "background.js"),
+      name: "background",
+      fileName: "background-bundle",
+      formats: ["iife"],
+    },
     rollupOptions: {
-      input: {
-        background: resolve(__dirname, "background.js"),
-        content: resolve(__dirname, "content/main.js"),
-      },
       output: {
-        dir: "dist",
-        entryFileNames: "[name]-bundle.js",
-        format: "iife",
-        manualChunks: undefined,
-        chunkFileNames: "[name].js",
-        assetFileNames: "[name][extname]",
+        extend: true,
       },
     },
-    modulePreload: {
-      polyfill: false,
-    },
-    cssCodeSplit: false,
-    minify: true,
-    sourcemap: true,
-    target: "es2015",
   },
+})
+
+const contentConfig = defineConfig({
+  build: {
+    outDir: "dist",
+    lib: {
+      entry: resolve(__dirname, "content/main.js"),
+      name: "content",
+      fileName: "content-bundle",
+      formats: ["iife"],
+    },
+    rollupOptions: {
+      output: {
+        extend: true,
+      },
+    },
+  },
+})
+
+// Export based on command line argument
+export default defineConfig(({ command, mode }) => {
+  if (mode === "background") {
+    return backgroundConfig
+  }
+  if (mode === "content") {
+    return contentConfig
+  }
+  // Default to background if no mode specified
+  return backgroundConfig
 })
