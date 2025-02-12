@@ -14,7 +14,8 @@
     "default_title": "Save as MHTML"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
