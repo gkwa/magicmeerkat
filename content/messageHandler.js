@@ -35,6 +35,16 @@ export function initializeMessageHandlers() {
       return true
     }
 
+    if (request.action === "extractReviews") {
+      const reviewsDiv = document.getElementById("reviews")
+      if (!reviewsDiv) {
+        sendResponse(null)
+        return false
+      }
+      sendResponse(reviewsDiv.outerHTML)
+      return false
+    }
+
     if (request.action === "showNotification") {
       // Only set fadeOut to true if it's not the completion message
       const fadeOut = !request.message.includes("Completed processing")
