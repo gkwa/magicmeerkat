@@ -3,6 +3,7 @@ default: build
 
 # Install dependencies
 setup:
+    pnpm init
     pnpm add -D vite@latest
 
 # Create necessary directories
@@ -15,16 +16,20 @@ clean:
 
 # Build the extension using vite
 build: clean create-dirs
-    pnpm build
-
-# Watch for changes and rebuild
-dev: clean create-dirs
-    pnpm dev
+    echo "Building background script..."
+    pnpm build --mode background
+    echo "Building content script..."
+    pnpm build --mode content
+    echo "Listing dist directory:"
+    ls -la dist/
 
 # Copy static assets
 copy-assets:
-    cp manifest.json dist/
-    cp icon*.png dist/
+    echo "Copying manifest and icons..."
+    cp manifest.json dist/ || echo "Failed to copy manifest.json"
+    cp icon*.png dist/ || echo "Failed to copy icons"
+    echo "Final dist contents:"
+    ls -la dist/
 
 # Full build including assets
 build-full: build copy-assets
