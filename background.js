@@ -119,8 +119,8 @@ async function getPageInfoWithRetry(tabId, maxRetries = 3, delay = 1000) {
 async function savePage(uuid, tabId, maxRetries = 3) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      if (!tabId) {
-        throw new Error("No tab ID provided")
+      if (typeof tabId !== "number" || tabId <= 0) {
+        throw new Error(`Invalid tab ID: ${tabId}`)
       }
 
       const tab = await chrome.tabs.get(tabId)
